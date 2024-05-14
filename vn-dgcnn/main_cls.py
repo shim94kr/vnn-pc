@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from data import ModelNet40
+from data import ModelNet40, GeometryPartDataset
 from model import DGCNN_cls
 from model_equi import EQCNN_cls
 import numpy as np
@@ -39,13 +39,47 @@ def _init_():
     os.system('cp data.py results/cls' + '/' + args.exp_name + '/' + 'data.py.backup')
 
 def train(args, io):
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=8,
-                              batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
-                             batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    data_dict = dict(
+        data_dir=args.data_dir,
+        data_fn=args.data_fn.format('train'),
+        data_keys=('part_ids', ),
+        category=args.category,
+        num_points=args.num_pc_points,
+        min_num_part=args.min_num_part,
+        max_num_part=args.max_num_part,
+        shuffle_parts=False,
+        rot_range=args.rot_range,
+        overfit=-1,
+    )
+    train_set = GeometryPartDataset(**data_dict)
+    train_loader = DataLoader(
+        dataset=train_set,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=8,
+        pin_memory=True,
+        drop_last=True,
+        persistent_workers=True,
+    )
+    print('Len of Train Loader: ', len(train_loader))
+    data_dict['data_fn'] = args.data_fn.format('val')
+    data_dict['shuffle_parts'] = False
+    test_set = GeometryPartDataset(**data_dict)
+    test_loader = DataLoader(
+        dataset=test_set,
+        batch_size=args.batch_size * 2,
+        shuffle=False,
+        num_workers=8,
+        pin_memory=True,
+        drop_last=False,
+        persistent_workers=True,
+    )
+    #train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=8,
+    #                          batch_size=args.batch_size, shuffle=True, drop_last=True)
+    #test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
+    #                         batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
-
     #Try to load models
     if args.model == 'dgcnn':
         model = DGCNN_cls(args).to(device)
@@ -87,7 +121,7 @@ def train(args, io):
             elif args.rot == 'so3':
                 trot = Rotate(R=random_rotations(data.shape[0]), device=device)
             
-            data, label = data.to(device), label.to(device).squeeze()
+            data, label = data.to(dtype=torch.float32, device=device), label.to(device).squeeze()
             if trot is not None:
                 data = trot.transform_points(data)
             data = data.permute(0, 2, 1)
@@ -129,7 +163,7 @@ def train(args, io):
             elif args.rot == 'so3':
                 trot = Rotate(R=random_rotations(data.shape[0]), device=device)
             
-            data, label = data.to(device), label.to(device).squeeze()
+            data, label = data.to(dtype=torch.float32, device=device), label.to(device).squeeze()
             if trot is not None:
                 data = trot.transform_points(data)
             data = data.permute(0, 2, 1)
@@ -211,16 +245,28 @@ def test(args, io):
 
 if __name__ == "__main__":
     # Training settings
+    # python main_cls.py --exp_name=dgcnn_vnn --model=eqcnn --rot=ROTATION
+
     parser = argparse.ArgumentParser(description='Point Cloud Recognition')
     parser.add_argument('--exp_name', type=str, default='dgcnn_vnn', metavar='N',
                         help='Name of the experiment')
     parser.add_argument('--model', type=str, default='eqcnn', metavar='N',
                         choices=['dgcnn', 'eqcnn'],
                         help='Model to use, [dgcnn, eqcnn]')
-    parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
-                        choices=['modelnet40'])
+    parser.add_argument('--dataset', type=str, default='geometry', metavar='N',
+                        choices=['modelnet40','geometry'])
+    parser.add_argument('--data_dir', type=str, default='./BBdataset', metavar='N',
+                        help='Path to the data directory')
+    parser.add_argument('--data_fn', type=str, default='data_split/everyday.{}.txt', metavar='N',
+                        help='Function for data split')
+    parser.add_argument('--category', type=str, default='', metavar='N',
+                        help='empty means all categories')
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
                         help='Size of batch)')
+    parser.add_argument('--min_num_part', type=int, default=2, help='Minimum number of parts')
+    parser.add_argument('--max_num_part', type=int, default=8, help='Maximum number of parts')
+    parser.add_argument('--num_pc_points', type=int, default=512, help='Number of point clouds')
+    parser.add_argument('--rot_range', type=float, default=-1., help='rotation range for curriculum learning')
     parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--epochs', type=int, default=250, metavar='N',
