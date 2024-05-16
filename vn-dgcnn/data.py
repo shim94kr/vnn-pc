@@ -324,11 +324,12 @@ class GeometryPartDataset(Dataset):
             cur_pts.append(pc)
             # cur_quat.append(gt_quat)
             # cur_trans.append(gt_trans)
-        pts = np.concatenate(cur_pts, axis=0)[:self.num_points]
+        pts = np.concatenate(cur_pts, axis=0)
 
         if 'train' in self.data_fn:
             pts = translate_pointcloud(pts)
             np.random.shuffle(pts)
+        pts = pts[:self.num_points]
         label = self.label_list[index]
         # cur_pts = self._pad_data(np.stack(cur_pts, axis=0))  # [P, N, 3]
         # cur_quat = self._pad_data(np.stack(cur_quat, axis=0))  # [P, 4]

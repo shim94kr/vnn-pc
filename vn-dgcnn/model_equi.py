@@ -229,10 +229,10 @@ class EQCNN_cls(nn.Module):
         self.conv3 = VNLinearLeakyReLU(64//3*2, 128//3)
         self.conv4 = VNLinearLeakyReLU(128//3*2, 256//3)
 
-        self.conv5 = VNLinearLeakyReLU(256//3+128//3+64//3*2, 1024//3, dim=4, share_nonlinearity=True)
+        self.conv5 = VNLinearLeakyReLU(256//3+128//3+64//3*2, args.emb_dims//3, dim=4, share_nonlinearity=True)
         
-        self.std_feature = VNStdFeature(1024//3*2, dim=4, normalize_frame=False)
-        self.linear1 = nn.Linear((1024//3)*12, 512)
+        self.std_feature = VNStdFeature(args.emb_dims//3*2, dim=4, normalize_frame=False)
+        self.linear1 = nn.Linear((args.emb_dims//3)*12, 512)
         
         self.bn1 = nn.BatchNorm1d(512)
         self.dp1 = nn.Dropout(p=0.5)
