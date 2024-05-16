@@ -190,9 +190,28 @@ def train(args, io):
 
 
 def test(args, io):
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points),
-                             batch_size=args.test_batch_size, shuffle=True, drop_last=False)
-
+    data_dict = dict(
+        data_dir=args.data_dir,
+        data_fn=args.data_fn.format('val'),
+        data_keys=('part_ids', ),
+        category=args.category,
+        num_points=args.num_pc_points,
+        min_num_part=args.min_num_part,
+        max_num_part=args.max_num_part,
+        shuffle_parts=False,
+        rot_range=args.rot_range,
+        overfit=-1,
+    )
+    test_set = GeometryPartDataset(**data_dict)
+    test_loader = DataLoader(
+        dataset=test_set,
+        batch_size=args.batch_size * 2,
+        shuffle=False,
+        num_workers=8,
+        pin_memory=True,
+        drop_last=False,
+        persistent_workers=True,
+    )
     device = torch.device("cuda" if args.cuda else "cpu")
 
     #Try to load models
@@ -226,7 +245,7 @@ def test(args, io):
         elif args.rot == 'so3':
             trot = Rotate(R=random_rotations(data.shape[0]), device=device)
 
-        data, label = data.to(device), label.to(device).squeeze()
+        data, label = data.to(dtype=torch.float32, device=device), label.to(device).squeeze()
         if trot is not None:
             data = trot.transform_points(data)
         data = data.permute(0, 2, 1)
@@ -241,6 +260,7 @@ def test(args, io):
     avg_per_class_acc = metrics.balanced_accuracy_score(test_true, test_pred)
     outstr = 'Test :: test acc: %.6f, test avg acc: %.6f'%(test_acc, avg_per_class_acc)
     io.cprint(outstr)
+
 
 
 if __name__ == "__main__":
