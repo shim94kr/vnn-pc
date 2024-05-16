@@ -246,10 +246,16 @@ class GeometryPartDataset(Dataset):
                 if 'fractured' not in frac and 'mode' not in frac:
                     continue
                 frac = os.path.join(mesh, frac)
-                num_parts = len(os.listdir(os.path.join(self.data_dir, frac)))
+                
+                data_folder = os.path.join(self.data_dir, frac)
+                mesh_files = os.listdir(data_folder)
+                mesh_files.sort()
+
+                num_parts = len(mesh_files)
                 if self.min_num_part <= num_parts <= self.max_num_part:
-                    data_list.append(frac)
-                    label_list.append(self.LABEL[cls])
+                    for mesh_file in mesh_files:
+                        data_list.append(os.path.join(frac, mesh_file))
+                        label_list.append(self.LABEL[cls])
                     # set_trace()
         return data_list, label_list
 
@@ -289,47 +295,19 @@ class GeometryPartDataset(Dataset):
         pad_data[:data.shape[0]] = data
         return pad_data
 
-    def _get_pcs(self, data_folder):
+    def _get_pcs(self, mesh_file):
         """Read mesh and sample point cloud from a folder."""
-        # `data_folder`: xxx/plate/1d4093ad2dfad9df24be2e4f911ee4af/fractured_0
-        data_folder = os.path.join(self.data_dir, data_folder)
-        mesh_files = os.listdir(data_folder)
-        mesh_files.sort()
-        if not self.min_num_part <= len(mesh_files) <= self.max_num_part:
-            raise ValueError
-
-        # shuffle part orders
-        if self.shuffle_parts:
-            random.shuffle(mesh_files)
-
-        # read mesh and sample points
-        meshes = [
-            trimesh.load(os.path.join(data_folder, mesh_file))
-            for mesh_file in mesh_files
-        ]
-        pcs = [
-            trimesh.sample.sample_surface(mesh, self.num_points)[0]
-            for mesh in meshes
-        ]
-        return np.stack(pcs, axis=0)
+        mesh = trimesh.load(os.path.join(self.data_dir, mesh_file))
+        pc = trimesh.sample.sample_surface(mesh, self.num_points)[0]
+        return pc
 
     def __getitem__(self, index):
-        pcs = self._get_pcs(self.data_list[index])
-        num_parts = pcs.shape[0]
-        cur_pts, cur_quat, cur_trans = [], [], []
-        for i in range(num_parts):
-            pc = pcs[i]
-            # pc, gt_trans = self._recenter_pc(pc)
-            # pc, gt_quat = self._rotate_pc(pc)
-            cur_pts.append(pc)
-            # cur_quat.append(gt_quat)
-            # cur_trans.append(gt_trans)
-        pts = np.concatenate(cur_pts, axis=0)
+        pc = self._get_pcs(self.data_list[index])
+        pts, gt_trans = self._recenter_pc(pc)
 
         if 'train' in self.data_fn:
             pts = translate_pointcloud(pts)
             np.random.shuffle(pts)
-        pts = pts[:self.num_points]
         label = self.label_list[index]
         # cur_pts = self._pad_data(np.stack(cur_pts, axis=0))  # [P, N, 3]
         # cur_quat = self._pad_data(np.stack(cur_quat, axis=0))  # [P, 4]

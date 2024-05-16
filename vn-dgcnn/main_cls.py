@@ -47,7 +47,7 @@ def train(args, io):
         num_points=args.num_pc_points,
         min_num_part=args.min_num_part,
         max_num_part=args.max_num_part,
-        shuffle_parts=False,
+        shuffle_parts=True,
         rot_range=args.rot_range,
         overfit=-1,
     )
@@ -285,7 +285,7 @@ if __name__ == "__main__":
                         help='Size of batch)')
     parser.add_argument('--min_num_part', type=int, default=2, help='Minimum number of parts')
     parser.add_argument('--max_num_part', type=int, default=8, help='Maximum number of parts')
-    parser.add_argument('--num_pc_points', type=int, default=512, help='Number of point clouds')
+    parser.add_argument('--num_pc_points', type=int, default=128, help='Number of point clouds')
     parser.add_argument('--rot_range', type=float, default=-1., help='rotation range for curriculum learning')
     parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
                         help='Size of batch)')
